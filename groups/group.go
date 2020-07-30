@@ -54,7 +54,6 @@ func (s *ServiceContext) CreateGroup(createGroup CreateGroupRequest) (Group, err
 	var data GetGroupResponse
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return Group{}, err
 	}
 	return data.Group, nil
@@ -75,7 +74,6 @@ func (s *ServiceContext) CreateGroupsTeams(payloadBody interface{}) (Group, erro
 	var data GetGroupResponse
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return Group{}, err
 	}
 	return data.Group, nil
@@ -91,7 +89,6 @@ func (s *ServiceContext) GetGroupsTeams() ([]Group, error) {
 	var data GetAllGroupResponse
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return nil, err
 	}
 	return data.Value, nil
@@ -117,7 +114,6 @@ func (s *ServiceContext) GetGroupsChannels(groupID string) ([]Channel, error) {
 	var data GetAllChannelResponse
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return nil, err
 	}
 	return data.Value, nil
@@ -154,7 +150,6 @@ func (s *ServiceContext) GetChannelsContact(groupID string) ([]Contact, error) {
 	var data GetAllContactResponse
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return nil, err
 	}
 	return data.Value, nil
@@ -247,7 +242,6 @@ func (s *ServiceContext) GetTeamsMessage(groupID, channelID string) (GetMessageR
 	}
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return data, err
 	}
 	return data, nil
@@ -266,7 +260,6 @@ func (s *ServiceContext) GetTeamsMessageReplies(groupID, channelID, messageID st
 	}
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return data, err
 	}
 	return data, nil
@@ -279,16 +272,13 @@ func (s *ServiceContext) GetTeamsMessageReplies(groupID, channelID, messageID st
 func (s *ServiceContext) SendTeamsMessage(groupID, channelID string, payloadBody interface{}) (ChannelMessage, error) {
 	var data ChannelMessage
 	url := fmt.Sprintf("beta/teams/%v/channels/%v/messages", groupID, channelID)
-	log.Printf("URL %#v", url)
 	body, err := internal.GraphRequest(s.client, "POST", url, nil, payloadBody)
 	if err != nil {
 		log.Printf("Error SendTeamsMessage GraphRequest %#v", err)
 		return data, err
 	}
-	log.Printf("body = %s > %v", string(body), payloadBody)
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Printf("Error %#v", err)
 		return data, err
 	}
 	return data, nil
