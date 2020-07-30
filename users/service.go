@@ -178,3 +178,17 @@ func (s *ServiceContext) UpdateUser(userIDOrPrincipal string, u UpdateUserReques
 	_, err := internal.GraphRequest(s.client, "PATCH", reqURL, nil, u)
 	return err
 }
+
+// GetLoggedUser returns a single user by id or principal name, with the Microsoft default fields
+// provided, identical to those specified in UserDefaultFields.
+func (s *ServiceContext) GetLoggedUser() (User, error) {
+	v := url.Values{}
+	//reqURL := fmt.Sprintf("v1.0/me", userIDOrPrincipal)
+	b, err := internal.GraphRequest(s.client, "GET", "v1.0/me", v, nil)
+	var data GetUserResponse
+	err = json.Unmarshal(b, &data)
+	if err != nil {
+		return User{}, err
+	}
+	return data.User, nil
+}

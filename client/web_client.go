@@ -1,19 +1,17 @@
 package client
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
+)
 
-	"github.com/mhoc/msgoraph/scopes"
+var (
+	authURL = "https://login.microsoftonline.com/%v/oauth2/v2.0/authorize"
 )
 
 // Web is used to authenticate requests in the context of an online/user-facing app, such
@@ -24,25 +22,29 @@ import (
 // does require an ApplicationSecret. Be sure to specify DelegatedOfflineAccess as a scope if you
 // want refreshing to work.
 type Web struct {
+	TenantID           string
 	ApplicationID      string
 	ApplicationSecret  string
 	AuthorizationCode  string
 	Error              error
 	LocalhostPort      int
+	RedirectURI        string
 	RefreshToken       string
 	RequestCredentials *RequestCredentials
-	Scopes             scopes.Scopes
+	Scopes             string
 }
 
 // NewWeb creates a new client.Web connection. To initialize the authentication on this, call
 // web.InitializeCredentials()
-func NewWeb(applicationID string, applicationSecret string, redirectURIPort int, scopes scopes.Scopes) *Web {
+func NewWeb(tenantID, applicationID, applicationSecret string, redirectURI string, scopes []string) *Web {
+	scp := strings.Join(scopes, ",")
 	return &Web{
+		TenantID:           tenantID,
 		ApplicationID:      applicationID,
 		ApplicationSecret:  applicationSecret,
-		LocalhostPort:      redirectURIPort,
+		RedirectURI:        redirectURI,
 		RequestCredentials: &RequestCredentials{},
-		Scopes:             scopes,
+		Scopes:             scp,
 	}
 }
 
@@ -55,12 +57,14 @@ func (w *Web) Credentials() *RequestCredentials {
 // InitializeCredentials starts an oauth login flow to retrieve an authorization code, then exchange
 // that authorization code for an access token and (if offline access is enabled) a refresh token.
 func (w *Web) InitializeCredentials() error {
-	err := w.setAuthorizationCode()
-	if err != nil {
-		return err
-	}
-	err = w.setAccessToken()
+	err := w.setAccessToken()
 	return err
+}
+
+// InitializeAuth starts an oauth login flow to retrieve an authorization code, then exchange
+// that authorization code for an access token and (if offline access is enabled) a refresh token.
+func (w *Web) Auth() string {
+	return w.setAuthorizationCode()
 }
 
 func (w *Web) localServer() *http.Server {
@@ -107,6 +111,14 @@ func (w *Web) localServer() *http.Server {
 	return srv
 }
 
+//Authorization Request an authorization code
+//The authorization code flow begins with the client directing the user to the /authorize endpoint.
+//
+//https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow
+func (w *Web) Authorization() string {
+	return fmt.Sprintf("https://login.microsoftonline.com/%v/oauth2/v2.0/authorize?response_mode=query&state=12345&response_type=code&client_id=%v&scope=%v&redirect_uri=%v", w.TenantID, w.ApplicationID, strings.ReplaceAll(w.Scopes, ",", "%20"), w.RedirectURI)
+}
+
 func (w *Web) redirectURI() string {
 	return fmt.Sprintf("http://localhost:%v/login", w.LocalhostPort)
 }
@@ -114,27 +126,23 @@ func (w *Web) redirectURI() string {
 // RefreshCredentials will attempt to refresh the access token if it is expired. This call will fail
 // if the original authorization was not made with a Offline scope provided.
 func (w *Web) RefreshCredentials() error {
-	if !w.Scopes.HasScope(scopes.DelegatedOfflineAccess) {
-		return fmt.Errorf("this web client was not configured for offline access and token refresh. to configure this, provide an offline scope during the initial client authorization")
-	}
 	if w.RefreshToken == "" {
 		return fmt.Errorf("client.Web: no refresh token found in web client. call client.InitializeCredentials to fill this")
 	}
 	w.RequestCredentials.AccessTokenUpdating.Lock()
 	defer w.RequestCredentials.AccessTokenUpdating.Unlock()
-	if w.RequestCredentials.AccessToken != "" && w.RequestCredentials.AccessTokenExpiresAt.After(time.Now()) {
-		return nil
-	}
-	tokenURI, err := url.Parse("https://login.microsoftonline.com/common/oauth2/v2.0/token")
+
+	turl := fmt.Sprintf("https://login.microsoftonline.com/%v/oauth2/v2.0/token", w.TenantID)
+	tokenURI, err := url.Parse(turl)
 	if err != nil {
 		return err
 	}
+
 	resp, err := http.PostForm(tokenURI.String(), url.Values{
 		"client_id":     {w.ApplicationID},
+		"client_secret": {w.ApplicationSecret},
 		"grant_type":    {"refresh_token"},
-		"redirect_uri":  {w.redirectURI()},
 		"refresh_token": {w.RefreshToken},
-		"scope":         {w.Scopes.QueryString()},
 	})
 	if err != nil {
 		return err
@@ -184,17 +192,18 @@ func (w *Web) setAccessToken() error {
 	if w.RequestCredentials.AccessToken != "" && w.RequestCredentials.AccessTokenExpiresAt.After(time.Now()) {
 		return nil
 	}
-	tokenURI, err := url.Parse("https://login.microsoftonline.com/common/oauth2/v2.0/token")
+	turl := fmt.Sprintf("https://login.microsoftonline.com/%v/oauth2/v2.0/token", w.TenantID)
+	tokenURI, err := url.Parse(turl)
 	if err != nil {
 		return err
 	}
+
 	resp, err := http.PostForm(tokenURI.String(), url.Values{
 		"client_id":     {w.ApplicationID},
 		"client_secret": {w.ApplicationSecret},
 		"code":          {w.AuthorizationCode},
 		"grant_type":    {"authorization_code"},
-		"redirect_uri":  {w.redirectURI()},
-		"scope":         {w.Scopes.QueryString()},
+		"redirect_uri":  {w.RedirectURI},
 	})
 	if err != nil {
 		return err
@@ -224,58 +233,31 @@ func (w *Web) setAccessToken() error {
 	if !ok || durationSecs == 0 {
 		return fmt.Errorf("no token duration found in response")
 	}
-	if w.Scopes.HasScope(scopes.DelegatedOfflineAccess) {
-		refreshToken, ok := data["refresh_token"].(string)
-		if !ok || refreshToken == "" {
-			return fmt.Errorf("no refresh token found in response")
-		}
-		w.RefreshToken = refreshToken
+	//if w.Scopes.HasScope(scopes.DelegatedOfflineAccess) {
+	refreshToken, ok := data["refresh_token"].(string)
+	if !ok || refreshToken == "" {
+		return fmt.Errorf("no refresh token found in response")
 	}
+	w.RefreshToken = refreshToken
+	//}
 	expiresAt := time.Now().Add(time.Duration(durationSecs) * time.Second)
 	w.RequestCredentials.AccessToken = accessToken
 	w.RequestCredentials.AccessTokenExpiresAt = expiresAt
 	return nil
 }
-
-func (w *Web) setAuthorizationCode() error {
+func (w *Web) setAuthorizationCode() string {
 	formVals := url.Values{}
 	formVals.Set("client_id", w.ApplicationID)
 	formVals.Set("grant_type", "authorization_code")
-	formVals.Set("redirect_uri", w.redirectURI())
+	formVals.Set("redirect_uri", w.RedirectURI)
 	formVals.Set("response_mode", "query")
 	formVals.Set("response_type", "code")
-	formVals.Set("scope", w.Scopes.QueryString())
+	formVals.Set("scope", w.Scopes)
 	uri, err := url.Parse("https://login.microsoftonline.com/common/oauth2/v2.0/authorize")
 	if err != nil {
-		return err
+		return "something wrong"
 	}
 	uri.RawQuery = formVals.Encode()
-	switch runtime.GOOS {
-	case "darwin":
-		err = exec.Command("open", uri.String()).Start()
-	case "linux":
-		err = exec.Command("xdg-open", uri.String()).Start()
-	case "windows":
-		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", uri.String()).Start()
-	default:
-		err = fmt.Errorf("unsupported platform")
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
-	server := w.localServer()
-	running := true
-	for running {
-		fmt.Printf("%v", w.AuthorizationCode)
-		if w.Error != nil || w.AuthorizationCode != "" {
-			if err := server.Shutdown(context.TODO()); err != nil {
-				return fmt.Errorf("error on server shutdown: %v", err)
-			}
-			if w.Error != nil {
-				return w.Error
-			}
-			return nil
-		}
-	}
-	return nil
+
+	return uri.String()
 }
