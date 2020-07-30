@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/mhoc/msgoraph/client"
-	"github.com/mhoc/msgoraph/internal"
+	"github.com/cention-mujibur-rahman/msgoraph/client"
+	"github.com/cention-mujibur-rahman/msgoraph/internal"
 )
 
 // CreateUserRequest is all the available args you can set when creating a user.

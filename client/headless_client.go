@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/mhoc/msgoraph/scopes"
+	"github.com/cention-mujibur-rahman/msgoraph/scopes"
 )
 
 // Headless is used to authenticate requests in the context of a backend app. This is the most

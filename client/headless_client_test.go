@@ -3,7 +3,7 @@ package client
 import (
 	"testing"
 
-	"github.com/mhoc/msgoraph/scopes"
+	"github.com/cention-mujibur-rahman/msgoraph/scopes"
 )
 
 func TestHeadlessClientInitialization(t *testing.T) {

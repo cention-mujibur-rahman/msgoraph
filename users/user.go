@@ -1,7 +1,7 @@
 package users
 
 import (
-	"github.com/mhoc/msgoraph/common"
+	"github.com/cention-mujibur-rahman/msgoraph/common"
 )
 
 // User the user resource type in the microsoft graph qpi. Interpreted from this API

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/mhoc/msgoraph/client"
+	"github.com/cention-mujibur-rahman/msgoraph/client"
 )
 
 const (

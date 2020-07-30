@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/mhoc/msgoraph/client"
-	"github.com/mhoc/msgoraph/internal"
+	"github.com/cention-mujibur-rahman/msgoraph/client"
+	"github.com/cention-mujibur-rahman/msgoraph/internal"
 )
 
 // ServiceContext represents a namespace under which all of the operations against user-namespaced
