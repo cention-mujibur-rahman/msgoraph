@@ -283,3 +283,23 @@ func (s *ServiceContext) SendTeamsMessage(groupID, channelID string, payloadBody
 	}
 	return data, nil
 }
+
+//SendTeamsReplyMessage Reply to a message in a channel
+//If successful, this method returns a 200 OK response code and a collection of chatMessage objects in the response body.
+//
+//https://docs.microsoft.com/en-us/graph/api/channel-post-messagereply?view=graph-rest-1.0&tabs=http
+func (s *ServiceContext) SendTeamsReplyMessage(groupID, channelID, replyID string, payloadBody interface{}) (ChannelMessage, error) {
+	var data ChannelMessage
+	//POST /teams/{id}/channels/{id}/messages/{id}/replies
+	url := fmt.Sprintf("beta/teams/%v/channels/%v/messages/%v/replies", groupID, channelID, replyID)
+	body, err := internal.GraphRequest(s.client, "POST", url, nil, payloadBody)
+	if err != nil {
+		log.Printf("Error SendTeamsReplyMessage GraphRequest %#v", err)
+		return data, err
+	}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return data, err
+	}
+	return data, nil
+}
